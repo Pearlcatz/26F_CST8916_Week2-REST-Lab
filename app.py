@@ -1,3 +1,6 @@
+# AI Disclosure: ChatGPT was used to assist with understanding,
+# implementing, and testing the tasks REST API endpoints.
+
 # Import necessary modules from Flask
 # Flask: the core framework for the web app
 # jsonify: to convert Python dictionaries to JSON responses
@@ -21,6 +24,23 @@ users = [
     {"id": 2, "name": "Bob", "age": 30},
 ]
 
+tasks = [
+    {
+        "id": 1,
+        "title": "Learn REST",
+        "description": "Study REST principles",
+        "user_id": 1,
+        "completed": True
+    },
+    {
+        "id": 2,
+        "title": "Build API",
+        "description": "Complete the assignment",
+        "user_id": 2,
+        "completed": False
+    }
+]
+
 # Define route to handle requests to the root URL ('/')
 @app.route('/')
 def index():
@@ -40,7 +60,52 @@ def health_check():
 @app.route('/users', methods=['GET'])
 def get_users():
     return jsonify(users), 200  # 200 is the HTTP status code for 'OK'
+# Route to retrieve all tasks
+@app.route('/tasks', methods=['GET'])
+def get_tasks():
+    return jsonify(tasks), 200
 
+# Route to create a new task
+@app.route('/tasks', methods=['POST'])
+def create_task():
+    # Make sure the request body contains valid JSON
+    if not request.is_json:
+        abort(400)
+
+    data = request.get_json()
+
+    # title and user_id are required
+    if 'title' not in data or 'user_id' not in data:
+        abort(400)
+
+    # Make sure the user_id refers to a real user
+    user = next((user for user in users if user['id'] == data['user_id']), None)
+
+    if user is None:
+        abort(400)
+
+    # Create the new task
+    new_task = {
+        'id': tasks[-1]['id'] + 1 if tasks else 1,
+        'title': data['title'],
+        'description': data.get('description', ''),
+        'user_id': data['user_id'],
+        'completed': data.get('completed', False)
+    }
+
+    tasks.append(new_task)
+
+    return jsonify(new_task), 201
+
+# Route to retrieve a single task by ID
+@app.route('/tasks/<int:task_id>', methods=['GET'])
+def get_task(task_id):
+    task = next((task for task in tasks if task['id'] == task_id), None)
+
+    if task is None:
+        abort(404)
+
+    return jsonify(task), 200
 # Route to retrieve a single user by their ID (GET request)
 # When the client sends a GET request to /users/<id>, this function will return the user with the specified ID.
 @app.route('/users/<int:user_id>', methods=['GET'])
@@ -50,6 +115,59 @@ def get_user(user_id):
     if user is None:
         abort(404)  # If the user is not found, return a 404 error (Not Found)
     return jsonify(user), 200  # Return the user as a JSON object with a 200 status code (OK)
+
+# Route to retrieve all tasks for a specific user
+@app.route('/users/<int:user_id>/tasks', methods=['GET'])
+def get_user_tasks(user_id):
+    user = next((user for user in users if user['id'] == user_id), None)
+
+    if user is None:
+        abort(404)
+
+    user_tasks = [task for task in tasks if task['user_id'] == user_id]
+
+    return jsonify(user_tasks), 200
+# Route to update an existing task
+@app.route('/tasks/<int:task_id>', methods=['PUT'])
+def update_task(task_id):
+    task = next((task for task in tasks if task['id'] == task_id), None)
+
+    if task is None:
+        abort(404)
+
+    if not request.is_json:
+        abort(400)
+
+    data = request.get_json()
+
+    # If user_id is being changed, make sure the new user exists
+    if 'user_id' in data:
+        user = next((user for user in users if user['id'] == data['user_id']), None)
+
+        if user is None:
+            abort(400)
+
+    task['title'] = data.get('title', task['title'])
+    task['description'] = data.get('description', task['description'])
+    task['user_id'] = data.get('user_id', task['user_id'])
+    task['completed'] = data.get('completed', task['completed'])
+
+    return jsonify(task), 200
+
+
+# Route to delete a task
+@app.route('/tasks/<int:task_id>', methods=['DELETE'])
+def delete_task(task_id):
+    global tasks
+
+    task = next((task for task in tasks if task['id'] == task_id), None)
+
+    if task is None:
+        abort(404)
+
+    tasks = [task for task in tasks if task['id'] != task_id]
+
+    return '', 204
 
 # Route to create a new user (POST request)
 # When the client sends a POST request to /users with user data, this function will add the new user to the list.
